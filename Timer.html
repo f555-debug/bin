@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3-минутный секундомер</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #DEFFDE;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      text-align: center;
+      background: #9DC99D;
+      padding: 25px 40px;
+      border-radius: 15px;
+      box-shadow: 0px 6px 15px rgba(0,0,0,0.2);
+      min-width: 250px;
+      position: relative;
+    }
+    #cycleCounter {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 13px;
+      color: #444;
+      font-weight: 400;
+    }
+    #time {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: green;
+    }
+    .hint {
+      font-size: 14px;
+      color: #555;
+      margin-top: 10px;
+    }
+    .credit {
+      font-size: 12px;
+      color: #777;
+      margin-top: 15px;
+    }
+    .credit a {
+      color: #007bff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .credit a:hover {
+      text-decoration: underline;
+    }
+    .blink {
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin: 0 5px 5px 0;
+      color: white;
+    }
+    #controlBtn { background: #024502; }
+    #controlBtn:hover { background: #013201; }
+    #stopBtn { background: red; }
+    #stopBtn:hover { background: darkred; }
+    #setTimeBtn { background: #013201; }
+    #setTimeBtn:hover { background: #024502; }
+    #timeInput {
+      width: 70px;
+      padding: 5px;
+      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid #555;
+      margin-right: 5px;
+      text-align: center;
+    }
+    .tooltip-container {
+      display: inline-block;
+      position: relative;
+      cursor: pointer;
+      font-weight: bold;
+      color: #024502;
+      border-radius: 5px;
+      padding: 3px 8px;
+      background-color: #A8D5A2;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    .tooltip-popup {
+      visibility: hidden;
+      width: 220px;
+      background-color: #ffffff;
+      color: #333;
+      text-align: left;
+      border-radius: 8px;
+      padding: 6px;
+      position: absolute;
+      z-index: 10;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      line-height: 1.3;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip-container:hover .tooltip-popup {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="cycleCounter">Циклы: 0</div>
+    <div id="time">00:00:00</div>
+    <button id="controlBtn" onclick="toggleStopwatch()">Старт</button>
+    <button id="stopBtn" onclick="stopStopwatch()">Стоп</button>
+    <div style="margin-top:10px;">
+      <input type="text" id="timeInput" placeholder="мм:сс">
+      <button id="setTimeBtn" onclick="setManualTime()">Задать</button>
+      <div>
+        <span class="tooltip-container">Guide
+          <span class="tooltip-popup">» Чтобы правильно работал таймер - необходимо его запустить одновременно с респом покемонов<br><br><span style="color:red"> » Таймер обнуляется самостоятельно после респа (Необходим только первый запуск)</span><br><br> » Звуковые уведомления будут озвучены заранее за 30сек, 15сек, 0сек(Респ)<br><br> » Чтобы таймер начал отсчет с нужного времени, введите время в формате м:сс и нажмите Задать<br><br>*Респ покемонов - <span style="color:blue; font-weight:bold; font-size:12px;">3 Минуты</span>
+          </span>
+        </span><br><br>
+      </div>
+    </div>
+    <div class="hint">Tunnel Spawn Counter</div>
+    <div class="credit">
+      <a id="creditLink"><b>+3 Ему :)</b></a>
+    </div>
+  </div>
+
+  <audio id="alert230" src="https://www.myinstants.com/media/sounds/gta-lockon-alert.mp3" preload="auto"></audio>
+  <audio id="alert245" src="https://www.myinstants.com/media/sounds/severe-thunderstorm-warning-ryan-hall-yall_V5kzHWO.mp3" preload="auto"></audio>
+  <audio id="alert300" src="https://www.myinstants.com/media/sounds/metal-gear-alert-sound-effect_XKoHReZ.mp3" preload="auto"></audio>
+  <audio id="startSound" src="https://www.myinstants.com/media/sounds/police-beep.mp3" preload="auto"></audio>
+  <audio id="creditSound" src="https://www.myinstants.com/media/sounds/y2mate_xvijLIk.mp3" preload="auto"></audio>
+
+  <script>
+    let timer;
+    let seconds = 0;
+    let running = false;
+    let cycles = 0;
+    let firstStart = true;
+
+    function formatTime(sec) {
+      let h = String(Math.floor(sec / 3600)).padStart(2, '0');
+      let m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+      let s = String(sec % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function updateDisplay() {
+      const display = document.getElementById("time");
+      display.textContent = formatTime(seconds);
+      display.classList.remove("blink");
+      display.style.color = "green";
+
+      if (seconds >= 120 && seconds < 150) display.style.color = "goldenrod";
+      if (seconds >= 150 && seconds < 160) display.style.color = "rgb(200,0,0)";
+      if (seconds >= 160 && seconds < 170) display.style.color = "rgb(220,0,0)";
+      if (seconds >= 170 && seconds < 180) {
+        display.style.color = "rgb(255,0,0)";
+        display.classList.add("blink");
+      }
+    }
+
+    function updateCycleCounter() {
+      document.getElementById("cycleCounter").textContent = "Циклы: " + cycles;
+    }
+
+    function tick() {
+      seconds++;
+      if (seconds >= 180) {
+        seconds = 0;
+        cycles++;
+        updateCycleCounter();
+      }
+      updateDisplay();
+
+      if (seconds === 150) document.getElementById("alert230").play();
+      if (seconds === 165) document.getElementById("alert245").play();
+      if (seconds === 179) document.getElementById("alert300").play();
+    }
+
+    function toggleStopwatch() {
+      const btn = document.getElementById("controlBtn");
+      if (!running) {
+        startStopwatch();
+        btn.textContent = "Сброс";
+        if (firstStart) {
+          document.getElementById("startSound").play();
+          firstStart = false;
+        }
+      } else {
+        resetAndStart();
+      }
+    }
+
+    function startStopwatch() {
+      running = true;
+      timer = setInterval(tick, 1000);
+    }
+
+    function resetAndStart() {
+      clearInterval(timer);
+      seconds = 0;
+      cycles = 0;
+      updateCycleCounter();
+      updateDisplay();
+      startStopwatch();
+      document.getElementById("controlBtn").textContent = "Сброс";
+    }
+
+    function stopStopwatch() {
+      clearInterval(timer);
+      seconds = 0;
+      cycles = 0;
+      running = false;
+      firstStart = true;
+      updateCycleCounter();
+      updateDisplay();
+      document.getElementById("controlBtn").textContent = "Старт";
+    }
+
+    function setManualTime() {
+      const input = document.getElementById("timeInput").value.trim();
+      if (!input) return;
+
+      const parts = input.split(':').map(Number);
+      let newSeconds = 0;
+
+      if (parts.length === 2) {
+        newSeconds = parts[0] * 60 + parts[1];
+      } else if (parts.length === 3) {
+        newSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      } else {
+        return;
+      }
+
+      if (newSeconds < 0 || newSeconds >= 180) newSeconds = 0;
+      seconds = newSeconds;
+      updateDisplay();
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.code === "Space") {
+        event.preventDefault();
+        toggleStopwatch();
+      }
+    });
+
+    document.getElementById("creditLink").addEventListener("click", function(e) {
+      e.preventDefault();
+      document.getElementById("creditSound").play();
+      window.open("https://www.gwars.io/info.php?id=2360403", "_blank");
+    });
+  </script>
+</body>
+</html>
