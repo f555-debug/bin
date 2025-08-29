@@ -29,12 +29,7 @@ html, body {
   margin-bottom: 20px;
 }
 #autoLabel { font-weight:bold; font-size:16px; margin-bottom:5px; }
-#nextResp {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 10px;
-  color: green;
-}
+#nextResp { font-size:28px; font-weight:bold; margin-bottom:10px; color:green; }
 .tooltip-container {
   display: inline-block;
   position: relative;
@@ -82,23 +77,49 @@ html, body {
 .tooltip-container:hover .tooltip-popup { visibility: visible; opacity: 1; }
 .credit a { color:#007bff; text-decoration:none; cursor:pointer; }
 .credit a:hover { text-decoration:underline; }
+
+#muteBtn {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #024502;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+#muteBtn:hover { 
+  background: #013201;
+  box-shadow: 0 0 5px #00ff88;
+  transform: scale(1.1);
+}
+#muteStatus {
+  position: absolute;
+  bottom: 6px;
+  left: 50px; /* space from mute button */
+  font-size: 10px;
+  color: white;
+}
 </style>
 </head>
 <body>
 
-<!-- Автоматический таймер -->
 <div class="container" id="autoTimerContainer">
   <div id="autoLabel">До респа подземки:</div>
   <div id="nextResp">00:00</div>
   <div class="tooltip-container">Респы поков
     <span class="tooltip-popup">
-      Расписание респов в подземке:<br>
+      Расписание респов:<br>
       <b>:00, :03, :06, :09, :12, :15, :18, :21, :24, :27, :30, :33, :36, :39, :42, :45, :48, :51, :54, :57</b>
     </span>
   </div>
+  <button id="muteBtn">Mute</button>
+  <span id="muteStatus">Sound ON</span>
 </div>
 
-<!-- Ручной таймер (старый) -->
 <div class="container" id="manualTimerContainer">
   <div id="manualTime">00:00:00</div>
   <button id="manualControlBtn" onclick="toggleManualStopwatch()">Старт</button>
@@ -112,7 +133,6 @@ html, body {
   </div>
 </div>
 
-<!-- Звуки автоматического таймера -->
 <audio id="alert230" src="https://www.myinstants.com/media/sounds/gta-lockon-alert.mp3" preload="auto"></audio>
 <audio id="alert245" src="https://www.myinstants.com/media/sounds/severe-thunderstorm-warning-ryan-hall-yall_V5kzHWO.mp3" preload="auto"></audio>
 <audio id="alert300" src="https://www.myinstants.com/media/sounds/metal-gear-alert-sound-effect_XKoHReZ.mp3" preload="auto"></audio>
@@ -120,20 +140,24 @@ html, body {
 <audio id="creditSound" src="https://www.myinstants.com/media/sounds/y2mate_xvijLIk.mp3" preload="auto"></audio>
 
 <script>
-/* ---------- Автоматический таймер ---------- */
-let respCount=0, nextResp=getNextRespTime();
+let nextResp=getNextRespTime();
+let isMuted=false;
+
 function getNextRespTime(){
   const now=new Date();
-  let nextMinute=Math.ceil(now.getMinutes()/3)*3;
-  if(nextMinute>=60){ now.setHours(now.getHours()+1); nextMinute=0; }
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), nextMinute, 0, 0);
+  let nextMinute=Math.floor(now.getMinutes()/3)*3+3;
+  let nextHour=now.getHours();
+  let d=now.getDate(), m=now.getMonth(), y=now.getFullYear();
+  if(nextMinute>=60){ nextMinute%=60; nextHour+=1; if(nextHour>=24){ nextHour=0; const tmp=new Date(y,m,d+1); y=tmp.getFullYear(); m=tmp.getMonth(); d=tmp.getDate(); } }
+  return new Date(y,m,d,nextHour,nextMinute,0,0);
 }
+
 function updateRespTimer(){
   const now=new Date();
   let diff=Math.floor((nextResp-now)/1000);
-  if(diff<0){ respCount++; nextResp=getNextRespTime(); diff=Math.floor((nextResp-now)/1000); }
-  let minutes=String(Math.floor(diff/60)).padStart(2,'0');
-  let seconds=String(diff%60).padStart(2,'0');
+  if(diff<0){ nextResp=getNextRespTime(); diff=Math.floor((nextResp-now)/1000); }
+  const minutes=String(Math.floor(diff/60)).padStart(2,'0');
+  const seconds=String(diff%60).padStart(2,'0');
   const display=document.getElementById("nextResp");
   display.textContent=`${minutes}:${seconds}`;
   display.style.color="green";
@@ -141,45 +165,39 @@ function updateRespTimer(){
   if(diff<=30) display.style.color="goldenrod";
   if(diff<=15) display.style.color="red";
   if(diff<=5) display.classList.add("blink");
-  if(diff===30) document.getElementById("alert230").play();
-  if(diff===15) document.getElementById("alert245").play();
-  if(diff===0) document.getElementById("alert300").play();
+  if(!isMuted){
+    if(diff===30) document.getElementById("alert230").play();
+    if(diff===15) document.getElementById("alert245").play();
+    if(diff===0) document.getElementById("alert300").play();
+  }
 }
 setInterval(updateRespTimer,1000);
 
-/* ---------- Ручной таймер ---------- */
-let manualSeconds=0, manualRunning=false, manualTimer, firstManualStart=true;
-function formatTime(sec){ let h=String(Math.floor(sec/3600)).padStart(2,'0'); let m=String(Math.floor((sec%3600)/60)).padStart(2,'0'); let s=String(sec%60).padStart(2,'0'); return `${h}:${m}:${s}`; }
-function updateManualDisplay(){ const d=document.getElementById("manualTime"); d.textContent=formatTime(manualSeconds); d.classList.remove("blink"); d.style.color="green"; if(manualSeconds>=120 && manualSeconds<150) d.style.color="goldenrod"; if(manualSeconds>=150 && manualSeconds<160) d.style.color="rgb(200,0,0)"; if(manualSeconds>=160 && manualSeconds<170) d.style.color="rgb(220,0,0)"; if(manualSeconds>=170 && manualSeconds<180){ d.style.color="rgb(255,0,0)"; d.classList.add("blink"); } }
-function manualTick(){ manualSeconds++; if(manualSeconds>=180) manualSeconds=0; updateManualDisplay(); }
-function toggleManualStopwatch(){ if(!manualRunning){ manualTimer=setInterval(manualTick,1000); manualRunning=true; if(firstManualStart){document.getElementById("startSound").play(); firstManualStart=false;} document.getElementById("manualControlBtn").textContent="Сброс"; } else {manualSeconds=0; updateManualDisplay();} }
-function stopManualStopwatch(){ clearInterval(manualTimer); manualSeconds=0; manualRunning=false; firstManualStart=true; updateManualDisplay(); document.getElementById("manualControlBtn").textContent="Старт"; }
-function setManualTime(){ const input=document.getElementById("timeInput").value.trim(); if(!input) return; const parts=input.split(":").map(Number); let newSec=0; if(parts.length===2) newSec=parts[0]*60+parts[1]; else if(parts.length===3) newSec=parts[0]*3600+parts[1]*60+parts[2]; else return; if(newSec<0 || newSec>=180) newSec=0; manualSeconds=newSec; updateManualDisplay(); }
-
-/* ---------- Прогрев аудио автоматического таймера при первом клике ---------- */
 let autoAudioInited=false;
 function initAutoAudio(){ 
   if(autoAudioInited) return;
-  const audios=["alert230","alert245","alert300"];
-  audios.forEach(id=>{ const a=document.getElementById(id); a.play().catch(()=>{}); a.pause(); a.currentTime=0; });
+  ["alert230","alert245","alert300"].forEach(id=>{ const a=document.getElementById(id); a.play().catch(()=>{}); a.pause(); a.currentTime=0; });
   autoAudioInited=true;
 }
 document.addEventListener("click", initAutoAudio, {once:true});
 
-/* ---------- Клик по +3 Ему ---------- */
-document.getElementById("creditLink").addEventListener("click",function(e){
-  e.preventDefault();
-  document.getElementById("creditSound").play();
-  window.open("https://www.gwars.io/info.php?id=2360403","_blank");
+document.getElementById("muteBtn").addEventListener("click", function(){
+    isMuted = !isMuted;
+    this.textContent = isMuted ? "Unmute" : "Mute";
+    document.getElementById("muteStatus").textContent = isMuted ? "Sound OFF" : "Sound ON";
 });
 
-/* ---------- Перетаскивание контейнеров ---------- */
-function makeDraggable(el){
-  let offsetX, offsetY, isDown=false;
-  el.addEventListener("mousedown", e=>{isDown=true; offsetX=e.clientX-el.offsetLeft; offsetY=e.clientY-el.offsetTop;});
-  document.addEventListener("mouseup", ()=>isDown=false);
-  document.addEventListener("mousemove", e=>{if(isDown){ el.style.left=(e.clientX-offsetX)+"px"; el.style.top=(e.clientY-offsetY)+"px"; el.style.position="absolute"; }});
-}
+let manualSeconds=0, manualRunning=false, manualTimer, firstManualStart=true;
+function formatTime(sec){ let h=String(Math.floor(sec/3600)).padStart(2,'0'); let m=String(Math.floor((sec%3600)/60)).padStart(2,'0'); let s=String(sec%60).padStart(2,'0'); return `${h}:${m}:${s}`; }
+function updateManualDisplay(){ const d=document.getElementById("manualTime"); d.textContent=formatTime(manualSeconds); d.classList.remove("blink"); d.style.color="green"; if(manualSeconds>=120&&manualSeconds<150)d.style.color="goldenrod"; if(manualSeconds>=150&&manualSeconds<160)d.style.color="rgb(200,0,0)"; if(manualSeconds>=160&&manualSeconds<170)d.style.color="rgb(220,0,0)"; if(manualSeconds>=170&&manualSeconds<180){d.style.color="rgb(255,0,0)";d.classList.add("blink");} }
+function manualTick(){ manualSeconds++; if(manualSeconds>=180)manualSeconds=0; updateManualDisplay(); }
+function toggleManualStopwatch(){ if(!manualRunning){ manualTimer=setInterval(manualTick,1000); manualRunning=true; if(firstManualStart){document.getElementById("startSound").play(); firstManualStart=false;} document.getElementById("manualControlBtn").textContent="Сброс"; } else {manualSeconds=0; updateManualDisplay();} }
+function stopManualStopwatch(){ clearInterval(manualTimer); manualSeconds=0; manualRunning=false; firstManualStart=true; updateManualDisplay(); document.getElementById("manualControlBtn").textContent="Старт"; }
+function setManualTime(){ const input=document.getElementById("timeInput").value.trim(); if(!input)return; const parts=input.split(":").map(Number); let newSec=0; if(parts.length===2)newSec=parts[0]*60+parts[1]; else if(parts.length===3)newSec=parts[0]*3600+parts[1]*60+parts[2]; else return; if(newSec<0||newSec>=180)newSec=0; manualSeconds=newSec; updateManualDisplay(); }
+
+document.getElementById("creditLink").addEventListener("click",function(e){ e.preventDefault(); document.getElementById("creditSound").play(); window.open("https://www.gwars.io/info.php?id=2360403","_blank"); });
+
+function makeDraggable(el){ let offsetX,offsetY,isDown=false; el.addEventListener("mousedown",e=>{isDown=true;offsetX=e.clientX-el.offsetLeft;offsetY=e.clientY-el.offsetTop;}); document.addEventListener("mouseup",()=>isDown=false); document.addEventListener("mousemove",e=>{if(isDown){el.style.left=(e.clientX-offsetX)+"px"; el.style.top=(e.clientY-offsetY)+"px"; el.style.position="absolute";}});}
 makeDraggable(document.getElementById("autoTimerContainer"));
 makeDraggable(document.getElementById("manualTimerContainer"));
 </script>
